@@ -46,18 +46,18 @@ class WiFiDirectBroadcastReceiver(
                     // 연결이 완료되었으므로 연결 정보를 요청
 
                     manager.requestConnectionInfo(channel,
-                    })
-                }
-
-                manager.requestPeers(channel, peerListListener)
-                Log.d(ConnectActivity.TAG, "P2P peers changed")
-                // Connection state changed! We should probably do something about
-                // that.
-
+                })
             }
-            WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
-                // Respond to this device's wifi state changing
-            }
+
+            manager.requestPeers(channel, peerListListener)
+                    Log.d(ConnectActivity.TAG, "P2P peers changed")
+            // Connection state changed! We should probably do something about
+            // that.
+
+        }
+        WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
+            // Respond to this device's wifi state changing
         }
     }
+}
 }
