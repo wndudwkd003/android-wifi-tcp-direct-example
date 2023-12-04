@@ -2,6 +2,7 @@ package com.wnzyan.wifi_direct_p2p_example
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Dialog
 import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -16,8 +17,10 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.widget.ListView
 import androidx.appcompat.app.AppCompatActivity
 import com.wnzyan.wifi_direct_p2p_example.databinding.ActivityConnectBinding
+import com.wnzyan.wifi_direct_p2p_example.device_list.DeviceListAdapter
 
 class ConnectActivity : AppCompatActivity() {
 
@@ -27,6 +30,8 @@ class ConnectActivity : AppCompatActivity() {
     private lateinit var manager: WifiP2pManager
 
     private lateinit var receiver: WiFiDirectBroadcastReceiver
+
+
 
     private val peers = mutableListOf<WifiP2pDevice>()
 
@@ -38,12 +43,30 @@ class ConnectActivity : AppCompatActivity() {
     private var hostAddress: String? = null
     private var hostIpAddress: String? = null
 
+    private val requestConnectionInfoListener = object : WifiP2pManager.ConnectionInfoListener {
+        override fun onConnectionInfoAvailable(info: WifiP2pInfo) {
+            if (info.groupFormed && info.isGroupOwner) {
+                // 현재 기기가 서버임
+                AppCompatActivity.log
+
+
+            } else if (info.groupFormed) {
+                // 현재 기기가 클라이언트임
+                startClientSocket(info.groupOwnerAddress.hostAddress!!)
+            }
+        }
+
     private val peerListListener = WifiP2pManager.PeerListListener { peerList ->
         val refreshedPeers = peerList.deviceList
+        logtv("original peers")
+        logtv(refreshedPeers.toString())
         if (refreshedPeers != peers) {
             peers.clear()
             peers.addAll(refreshedPeers)
         }
+
+        logtv("refreshed peers")
+        logtv(refreshedPeers.toString())
 
         if (peers.isEmpty()) {
             logtv("No devices found")
@@ -92,53 +115,12 @@ class ConnectActivity : AppCompatActivity() {
         }
 
 
-
-
         if (connectType == "HOST") {
-            viewBinding.btnConnectStart.setOnClickListener {
-                if (!isWifiP2pEnabled) {
-                    return@setOnClickListener
-                }
+            viewBinding.tvSsid.visibility = View.GONE
+            viewBinding.etSsid.visibility = View.GONE
+            viewBinding.tvPw.visibility = View.GONE
+            viewBinding.etPw.visibility = View.GONE
 
-                val ssid = viewBinding.etSsid.text.toString()
-                val pw = viewBinding.etPw.text.toString()
-                val band = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    WifiP2pConfig.GROUP_OWNER_BAND_2GHZ
-                } else {
-                    -1
-                }
-
-                val config: WifiP2pConfig
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    config = WifiP2pConfig.Builder()
-                        .setNetworkName("DIRECT-hs-$ssid")
-                        .setPassphrase(pw)
-                        .enablePersistentMode(false)
-                        .setGroupOperatingBand(band)
-                        .build()
-
-                    manager.createGroup(channel, config, object : WifiP2pManager.ActionListener {
-                        override fun onSuccess() {
-                            isHotspotEnabled = true
-                            logtv("hot spot start")
-                            logtv("SSID : $ssid")
-                            logtv("PW : $pw")
-                            logtv("BAND : $band")
-                        }
-
-                        override fun onFailure(p0: Int) {
-                            logtv("hot spot failed")
-                        }
-
-                    })
-                } else {
-
-                }
-
-                startServerSocket()
-
-            }
 
             viewBinding.btnConnectStop.setOnClickListener {
                 manager.removeGroup(channel, object : WifiP2pManager.ActionListener {
@@ -159,59 +141,43 @@ class ConnectActivity : AppCompatActivity() {
 
             }
 
+
+
         } else {
             viewBinding.tvSsid.visibility = View.GONE
             viewBinding.etSsid.visibility = View.GONE
             viewBinding.tvPw.visibility = View.GONE
             viewBinding.etPw.visibility = View.GONE
 
-            manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    logtv("Peer discovery started")
-                }
 
-                override fun onFailure(p0: Int) {
-                    logtv("Peer discovery initiation failed: $p0")
-                }
-
-            })
-
-            viewBinding.btnConnectStart.setOnClickListener {
-                if (peers.isNotEmpty()) {
-                    // 첫 번째 피어(호스트)를 선택. 실제 앱에서는 사용자가 피어를 선택할 수 있어야 합니다.
-                    val device = peers[0]
-
-                    val config = WifiP2pConfig().apply {
-                        deviceAddress = device.deviceAddress
-                        wps.setup = WpsInfo.PBC
-                    }
-
-                    manager.connect(channel, config, object : WifiP2pManager.ActionListener {
-                        override fun onSuccess() {
-                            // 연결 시도 성공
-                            logtv("Connection to host initiated")
-                            logtv("host address ${device.deviceAddress}")
-                            hostAddress = device.deviceAddress
-                        }
-
-                        override fun onFailure(reason: Int) {
-                            // 연결 시도 실패
-                            logtv("Connection to host failed: $reason")
-                        }
-                    })
-
-
-
-
-                } else {
-                    logtv("No peers found")
-                }
-
-
-
-
-
-            }
+//            viewBinding.btnConnectStart.setOnClickListener {
+//                if (peers.isNotEmpty()) {
+//                    // 첫 번째 피어(호스트)를 선택. 실제 앱에서는 사용자가 피어를 선택할 수 있어야 합니다.
+//                    val device = peers[0]
+//
+//                    val config = WifiP2pConfig().apply {
+//                        deviceAddress = device.deviceAddress
+//                        wps.setup = WpsInfo.PBC
+//                    }
+//
+//                    manager.connect(channel, config, object : WifiP2pManager.ActionListener {
+//                        override fun onSuccess() {
+//                            // 연결 시도 성공
+//                            logtv("Connection to host initiated")
+//                            logtv("host address ${device.deviceAddress}")
+//                            hostAddress = device.deviceAddress
+//                        }
+//
+//                        override fun onFailure(reason: Int) {
+//                            // 연결 시도 실패
+//                            logtv("Connection to host failed: $reason")
+//                        }
+//                    })
+//
+//                } else {
+//                    logtv("No peers found")
+//                }
+//            }
 
             viewBinding.btnInput.setOnClickListener {
                 manager.requestConnectionInfo(channel, object : WifiP2pManager.ConnectionInfoListener {
@@ -242,19 +208,32 @@ class ConnectActivity : AppCompatActivity() {
             }
         }
 
+        viewBinding.btnConnectStart.setOnClickListener {
+            if (peers.isNotEmpty()) {
+                showDevicesDialog(this, peers)
+            } else {
+                logtv("No peers found. Please refresh.")
+            }
+        }
 
-        refresh()
+
 
         viewBinding.btnRefresh.setOnClickListener {
             refresh()
         }
-
-
     }
 
     @SuppressLint("MissingPermission")
     private fun refresh() {
-        manager.requestPeers(channel, peerListListener)
+        manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                logtv("Peer discovery started")
+            }
+
+            override fun onFailure(p0: Int) {
+                logtv("Peer discovery initiation failed: $p0")
+            }
+        })
     }
 
 
@@ -286,6 +265,7 @@ class ConnectActivity : AppCompatActivity() {
         super.onResume()
         receiver = WiFiDirectBroadcastReceiver(manager, channel, this, peerListListener)
         registerReceiver(receiver, intentFilter)
+        logtv("receiver register")
     }
 
     public override fun onPause() {
@@ -312,10 +292,9 @@ class ConnectActivity : AppCompatActivity() {
 
     @SuppressLint("MissingPermission")
     fun updateConnectedDeviceList() {
-        if (!isHotspotEnabled) {
-            return
-        }
-
+//        if (!isHotspotEnabled) {
+//            return
+//        }
 
         manager.requestGroupInfo(channel, object : WifiP2pManager.GroupInfoListener {
             override fun onGroupInfoAvailable(p0: WifiP2pGroup?) {
@@ -358,6 +337,45 @@ class ConnectActivity : AppCompatActivity() {
         // UI 스레드에서 채팅 메시지를 표시
         logtv(message)
     }
+
+    private fun showDevicesDialog(context: Context, devices: List<WifiP2pDevice>) {
+        val dialog = Dialog(context)
+        dialog.setContentView(R.layout.dialog_devices_list)
+
+        val listView = dialog.findViewById<ListView>(R.id.lv_device)
+        val adapter = DeviceListAdapter(context, R.layout.cv_select_device, devices)
+        listView.adapter = adapter
+
+        listView.setOnItemClickListener { _, _, position, _ ->
+            val device = devices[position]
+            connectToDevice(device)
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun connectToDevice(device: WifiP2pDevice) {
+        val config = WifiP2pConfig().apply {
+            deviceAddress = device.deviceAddress
+            wps.setup = WpsInfo.PBC
+        }
+
+        manager.connect(channel, config, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                logtv("Connecting success to device!!: ${device.deviceAddress}")
+
+
+
+            }
+
+            override fun onFailure(reason: Int) {
+                logtv("Failed to connect to device: ${device.deviceAddress}")
+            }
+        })
+    }
+
 
 
 
